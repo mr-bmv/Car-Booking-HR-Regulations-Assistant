@@ -17,6 +17,12 @@
   <img src="../assets/С4_overview.png"  width="800">
 </p>
 
+#### В системе бронирования предусмотрены три основных сценария
+
+<p align="center">
+  <img src="../assets/scenarios.png"  width="500">
+</p>
+
 ---
 
 ## 2. База данных (Supabase)
@@ -135,6 +141,10 @@ CREATE INDEX idx_audit_log_actor ON public.audit_log (actor);
 ## 3. RPC-слой (Repository Pattern)
 
 Весь доступ к данным из pipeline идёт исключительно через именованные PostgreSQL-функции (`SECURITY DEFINER`, явный `search_path`), вызываемые через HTTP-узлы Dify. Ни один узел приложения не выполняет прямой SELECT/INSERT/UPDATE к таблицам — единственное исключение зафиксировано явно: BEFORE/AFTER-триггер на `bookings` обращается к данным напрямую, но является частью уровня данных, а не приложенческого кода (`ADR-030`).
+
+<p align="center">
+  <img src="../assets/rpc.png"  width="500">
+</p>
 
 | Функция | Назначение |
 |---|---|
