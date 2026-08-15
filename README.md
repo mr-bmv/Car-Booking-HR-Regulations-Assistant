@@ -26,6 +26,10 @@
 
 > **Актуальная версия бота**: [https://udify.app/chat/pDrd8Z2oX8xg0ZK8](https://udify.app/chat/pDrd8Z2oX8xg0ZK8)
 
+<p align="center">
+  <img src="assets/welcome.png"  width="600">
+</p>
+
 ---
 
 ## О проекте
@@ -49,13 +53,13 @@
 - Система отвечает только в рамках заданных сценариев и не реагирует на посторонние вопросы
 
 <p align="center">
-  <img src="assets/только_сценарии.png"  width="800">
+  <img src="assets/только_сценарии.png"  width="600">
 </p>
 
 - Система не выдумывает ответы
 
 <p align="center">
-  <img src="assets/rome.png"  width="800">
+  <img src="assets/rome.png"  width="600">
 </p>
 
 ### 💬 Вопросы по регламентам (RAG)
@@ -77,13 +81,13 @@
 - Работа системы с Регламентом оформления командировок
 
 <p align="center">
-  <img src="assets/hotel_limit.png"  width="800">
+  <img src="assets/hotel_limit.png"  width="600">
 </p>
 
 - Работа системы с Регламентом предоставления отпусков
 
 <p align="center">
-  <img src="assets/vacation.png"  width="800">
+  <img src="assets/vacation.png"  width="600">
 </p>
 
 
@@ -99,29 +103,29 @@
 - Работа системы с получением списка забронированных автомобилей по пользователю
 
 <p align="center">
-  <img src="assets/bookings.png"  width="800">
+  <img src="assets/bookings.png"  width="600">
 </p>
 
 - Работа системы с получением списка свободных для бронирования автомобилей по городу и дате
 
 <p align="center">
-  <img src="assets/free_cars.png"  width="800">
+  <img src="assets/free_cars.png"  width="600">
 </p>
 
 - Работа системы в процессе бронирования автомобиля
 
 <p align="center">
-  <img src="assets/reserve_car.png"  width="800">
+  <img src="assets/reserve_car.png"  width="600">
 </p>
 
 - Работа системы в процессе отмены бронирования автомобиля
 
 <p align="center">
-  <img src="assets/cancel-1.png"  width="800">
+  <img src="assets/cancel-1.png"  width="600">
 </p>
 
 <p align="center">
-  <img src="assets/cancel-2.png"  width="800">
+  <img src="assets/cancel-2.png"  width="600">
 </p>
 
 ---
@@ -162,7 +166,7 @@
 Проект разделён на два независимых Dify-приложения:
 
 <p align="center">
-  <img src="assets/С4_overview.png"  width="800">
+  <img src="assets/С4_overview.png"  width="600">
 </p>
 
 **Почему RAG вынесен, а booking — нет.** RAG stateless по своей природе (каждый вопрос самодостаточен, не требует памяти между сообщениями) — разделение потребовало только передачи текста вопроса, без состояния. Booking, напротив, построен на многошаговом диалоговом состоянии (session lock, Guard Rail-подтверждение, накопление параметров между сообщениями) — вынос в отдельное приложение потребовал бы либо полной передачи состояния через границу HTTP на каждый ход, либо поддержки Dify длящейся сессии дочернего приложения, что не подтверждено платформенно. Решение отложено после оценки трудозатрат — см. `ADR-032` в [ADR-логе](docs/adr-log.md).
@@ -170,7 +174,7 @@
 Схема подсистемы работы с регламентами (RAG) :
 
 <p align="center">
-  <img src="assets/C4_RAG.png"  width="800">
+  <img src="assets/C4_RAG.png"  width="600">
 </p>
 
 ---
