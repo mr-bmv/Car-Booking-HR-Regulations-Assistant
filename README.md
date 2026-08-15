@@ -177,6 +177,8 @@
   <img src="assets/C4_RAG.png"  width="600">
 </p>
 
+[RAG-система по регламентам](https://github.com/mr-bmv/enterprise-knowledge-assistant)
+
 ---
 
 ## Подходы и методики, реализованные в этом проекте
