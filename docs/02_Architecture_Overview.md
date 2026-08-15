@@ -24,7 +24,7 @@
 ### Схема
 
 <p align="center">
-  <img src="../assets/ERD.png"  width="800">
+  <img src="../assets/ERD.png"  width="500">
 </p>
 
 ### Создание БД, описание таблиц, полей и связей
@@ -195,7 +195,7 @@ CREATE INDEX idx_audit_log_actor ON public.audit_log (actor);
 Перед `reserve_available_car` и `cancel_booking` пользователь обязан явно подтвердить действие (`ADR-025`). Реализовано как текстовый диалог (не встроенный Dify-узел Human Input — отклонён из-за платформенного бага при публикации графа, `ADR-013`):
 
 <p align="center">
-  <img src="../assets/work.png"  width="600">
+  <img src="../assets/work.png"  width="500">
 </p>
 
 Ответы пользователя разбираются детерминированным Code-блоком (точное совпадение «да»/«нет»/«прервать»/«заменить»), не LLM — предсказуемость на критичном пути перед мутацией.
