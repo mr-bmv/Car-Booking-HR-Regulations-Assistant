@@ -13,23 +13,9 @@
 
 Разделение проведено по признаку stateless/stateful: RAG не требует памяти между сообщениями, поэтому вынесен без сложностей. Booking полностью построен на многошаговом диалоговом состоянии — решение оставить его в родительском приложении, а не выносить аналогично RAG, обосновано в `ADR-032`.
 
-❗❗
-
-Пользователь
-▼
-Родительское приложение
-│
-├── Regulation-вопрос ──HTTP──> Дочернее RAG-приложение ──> ответ
-│
-└── Booking-сценарий (reserve / my_bookings / cancel)
-│
-▼
-HTTP → Supabase RPC
-│
-▼
-PostgreSQL (RLS, триггеры, audit log)
-
-❗❗ *[Схема-кандидат: та же диаграмма в графическом виде — два прямоугольника приложений, стрелка HTTP между ними, третий прямоугольник — Supabase]*
+<p align="center">
+  <img src="../assets/С4_overview.png"  width="800">
+</p>
 
 ---
 
@@ -37,25 +23,96 @@ PostgreSQL (RLS, триггеры, audit log)
 
 ### Схема
 
-cars users bookings
-───────────────── ───────────── ──────────────────────
-id (uuid, PK) id (uuid, PK) id (uuid, PK)
-number (text, unique) name (text) car_id (FK → cars)
-model (text) user_id (FK → users)
-city (city_enum) booking_date (date)
-status (text: confirmed/cancelled)
+<p align="center">
+  <img src="../assets/ERD.png"  width="800">
+</p>
 
-audit_log
-──────────────────────
-id (uuid, PK)
-occurred_at (timestamptz)
-actor (text, default 'HR_test')
-event_type (text: read/mutation)
-action (text)
-booking_id (uuid, nullable)
-details (jsonb)
+### Создание БД, описание таблиц, полей и связей
 
-❗❗ *[Схема-кандидат: ER-диаграмма связей между таблицами]*
+```sql
+-- ============================================
+-- ШАГ 1. ENUM для города
+-- ============================================
+
+CREATE TYPE city_enum AS ENUM ('Москва', 'Санкт-Петербург', 'Уфа');
+
+-- ============================================
+-- ШАГ 2. Таблица cars
+-- ============================================
+
+CREATE TABLE public.cars (
+    id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    number  text NOT NULL UNIQUE,
+    model   text NOT NULL,
+    city    city_enum NOT NULL
+);
+
+-- гарантируем единый регистр номера прямо на уровне БД —
+-- дублирует вашу нормализацию в коде Dify, но защищает от случаев,
+-- если данные когда-нибудь попадут в таблицу в обход pipeline
+ALTER TABLE public.cars
+    ADD CONSTRAINT number_uppercase_check CHECK (number = upper(number));
+
+-- индекс под частый фильтр "машины в городе X"
+CREATE INDEX idx_cars_city ON public.cars (city);
+
+
+-- ============================================
+-- ШАГ 3. Таблица users
+-- ============================================
+
+CREATE TABLE public.users (
+    id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name  text NOT NULL
+);
+
+-- намеренно НЕТ UNIQUE на name — по вашему решению,
+-- разное написание имени считается разными записями
+
+
+-- ============================================
+-- ШАГ 4. Таблица bookings
+-- ============================================
+
+CREATE TABLE public.bookings (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    car_id        uuid NOT NULL REFERENCES public.cars(id),
+    user_id       uuid NOT NULL REFERENCES public.users(id),
+    booking_date  date NOT NULL,
+    status        text NOT NULL DEFAULT 'confirmed'
+                  CHECK (status IN ('confirmed', 'cancelled'))
+);
+
+-- индексы под частые фильтры
+CREATE INDEX idx_bookings_car_id ON public.bookings (car_id);
+CREATE INDEX idx_bookings_user_id ON public.bookings (user_id);
+CREATE INDEX idx_bookings_booking_date ON public.bookings (booking_date);
+
+-- защита от двойного бронирования на уровне БД:
+-- не может быть двух confirmed-записей на одну машину/дату одновременно
+CREATE UNIQUE INDEX unique_active_booking
+    ON public.bookings (car_id, booking_date)
+    WHERE status = 'confirmed';
+
+-- ============================================
+-- ШАГ 5. Таблица audit_log
+-- ============================================
+
+CREATE TABLE public.audit_log (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    occurred_at  timestamptz NOT NULL DEFAULT now(),
+    actor        text NOT NULL DEFAULT 'HR_test',
+    event_type   text NOT NULL CHECK (event_type IN ('read', 'mutation')),
+    action       text NOT NULL,
+    booking_id   uuid,
+    details      jsonb
+);
+
+CREATE INDEX idx_audit_log_occurred_at ON public.audit_log (occurred_at);
+CREATE INDEX idx_audit_log_booking_id ON public.audit_log (booking_id);
+CREATE INDEX idx_audit_log_actor ON public.audit_log (actor);
+
+```
 
 ### Ключевые решения
 
@@ -69,7 +126,9 @@ details (jsonb)
 
 Включён на всех таблицах. Явные deny-политики (`USING (false)`) для `anon`/`authenticated`. Весь легитимный доступ — через `service_role` (обходит RLS по определению); RPC-функции с `SECURITY DEFINER` также обходят RLS. Защита нацелена на гипотетическую утечку `anon`-ключа, не на текущий рабочий путь.
 
-❗❗ *[Скриншот-кандидат: Authentication → Policies в Supabase]*
+<p align="center">
+  <img src="../assets/RLS.png"  width="100%">
+</p>
 
 ---
 
@@ -88,13 +147,13 @@ details (jsonb)
 | `expire_past_bookings` | Служебная — переводит просроченные брони в cancelled, запускается через `pg_cron` |
 | `log_read_event` | Запись read-события в audit_log |
 
-❗❗ Полные сигнатуры — в `api-contract.md`.
+Полные сигнатуры — в [04_API_Contract](04_API_Contract.md)
 
 ---
 
 ## 4. Управление диалогом — Finite State Machine / Session Lock
 
-Центральное архитектурное решение системы (`ADR-027`). Пришли к нему после серии обнаруженных на практике сбоев маршрутизации при более ранней модели (многоуровневые приоритеты классификации, `ADR-012`/`ADR-016`/`ADR-019`, впоследствии заменённые).
+Центральное архитектурное решение системы (`ADR-027`). Пришел к нему после серии обнаруженных на практике сбоев маршрутизации при более ранней модели (многоуровневые приоритеты классификации, `ADR-012`/`ADR-016`/`ADR-019`, впоследствии заменённые).
 
 ### Принцип
 
@@ -119,9 +178,11 @@ details (jsonb)
 2. Успешное завершение сценария
 3. Ошибка выполнения (сбой инфраструктуры)
 
-Все три ведут в единый блок очистки состояния (`ADR-024`), сбрасывающий полный набор conv-переменных, кроме `conv_employee_name`.
+Все три ведут в единый блок очистки состояния (`ADR-024`), сбрасывающий полный набор conv-переменных.
 
-*[Схема-кандидат: диаграмма состояний — collecting → confirming → choosing → collecting/выполнение, с обозначением условий выхода]*
+<p align="center">
+  <img src="../assets/principal.png"  width="600">
+</p>
 
 ### Механизм накопления параметров (merge)
 
@@ -133,15 +194,9 @@ details (jsonb)
 
 Перед `reserve_available_car` и `cancel_booking` пользователь обязан явно подтвердить действие (`ADR-025`). Реализовано как текстовый диалог (не встроенный Dify-узел Human Input — отклонён из-за платформенного бага при публикации графа, `ADR-013`):
 
-❗❗
-Показ сводки → Да/Нет
-│
-Нет ───┴─── Да → выполнение
-│
-Прервать/Заменить
-│
-Прервать → полная очистка
-Заменить → уточнение одного параметра → снова показ сводки
+<p align="center">
+  <img src="../assets/work.png"  width="600">
+</p>
 
 Ответы пользователя разбираются детерминированным Code-блоком (точное совпадение «да»/«нет»/«прервать»/«заменить»), не LLM — предсказуемость на критичном пути перед мутацией.
 
@@ -169,7 +224,9 @@ details (jsonb)
 
 `actor` — захардкоженное системное значение (`HR_test`), не криптографически подтверждённая идентификация — авторизации в системе нет.
 
-❗❗ *[Скриншот-кандидат: пример строк из audit_log с разными event_type]*
+<p align="center">
+  <img src="../assets/audit_log.png"  width="100%">
+</p>
 
 ---
 
@@ -182,4 +239,4 @@ details (jsonb)
 - Вынос booking-логики в отдельное дочернее приложение (`ADR-032`)
 - TTL / автоматическая очистка состояния диалога при длительном бездействии пользователя
 
-Подробности и обоснование каждого решения — в ADR-логе проекта (❗❗`docs/adr-log.md`).
+Подробности и обоснование каждого решения — в [ADR](03_Architecture_Decision_Records.md)-логе проекта
