@@ -71,8 +71,8 @@
 
 | Документ | Документ | Адаптированная версия|
 |----------|----------|----------|
-| Регламент оформления командировок |‼️  | ‼️ |
-| Регламент предоставления отпусков |‼️  | ‼️ |
+| Регламент оформления командировок | [pdf](knowledge_base/Reglament_Komandirovki_v1.0.pdf)  | [md](knowledge_base/PP_Reglament_Komandirovki_v1.0.md)  |
+| Регламент предоставления отпусков |[pdf](knowledge_base/Reglament_Otpuskov_v1.0.pdf) |  [md](knowledge_base/PP_Reglament_Otpuskov_v1.0.md) |
 
 - Работа системы с Регламентом оформления командировок
 
